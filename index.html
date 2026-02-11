@@ -12,7 +12,8 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #1a202c;
             color: white;
-            user-select: none; /* 防止双击选中文本 */
+            user-select: none;
+            touch-action: manipulation; /* 优化移动端点击 */
         }
 
         .pixel-font {
@@ -20,9 +21,8 @@
             font-weight: bold;
         }
 
-        /* 挖矿格子的样式 */
         .mine-block {
-            transition: all 0.2s;
+            transition: all 0.1s;
             cursor: pointer;
             box-shadow: inset 0 -4px 0 rgba(0,0,0,0.3);
         }
@@ -32,12 +32,7 @@
             box-shadow: inset 0 -1px 0 rgba(0,0,0,0.3);
         }
 
-        .mine-block.disabled {
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
-
-        /* 动画效果 */
+        /* 动画效果定义 */
         @keyframes shake {
             0% { transform: translate(1px, 1px) rotate(0deg); }
             10% { transform: translate(-1px, -2px) rotate(-1deg); }
@@ -54,12 +49,11 @@
 
         .shake-anim {
             animation: shake 0.5s;
-            animation-iteration-count: 1;
         }
 
         @keyframes pop {
-            0% { transform: scale(0.8); opacity: 0; }
-            50% { transform: scale(1.2); }
+            0% { transform: scale(0.5); opacity: 0; }
+            60% { transform: scale(1.1); }
             100% { transform: scale(1); opacity: 1; }
         }
 
@@ -68,92 +62,125 @@
         }
 
         @keyframes floatUp {
-            0% { transform: translateY(0); opacity: 1; }
-            100% { transform: translateY(-20px); opacity: 0; }
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-30px) scale(1.1); opacity: 0; }
         }
 
         .float-text {
             position: absolute;
             pointer-events: none;
-            animation: floatUp 1s ease-out forwards;
+            animation: floatUp 0.8s ease-out forwards;
             font-weight: bold;
-            text-shadow: 1px 1px 2px black;
-            z-index: 50;
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+
+        /* 商店红点提示 */
+        .notification-dot {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 12px;
+            height: 12px;
+            background-color: #ef4444;
+            border-radius: 50%;
+            border: 2px solid #374151;
+            display: none;
+        }
+        .notification-dot.active {
+            display: block;
         }
     </style>
 </head>
 <body class="h-screen flex flex-col items-center justify-center overflow-hidden bg-gray-900">
 
     <!-- 游戏主容器 -->
-    <div class="w-full max-w-md h-full flex flex-col bg-gray-800 shadow-2xl relative">
+    <div class="w-full max-w-md h-full flex flex-col bg-gray-800 shadow-2xl relative border-x border-gray-700">
         
         <!-- 顶部信息栏 -->
         <div class="p-4 bg-gray-700 shadow-md z-10 flex justify-between items-center border-b border-gray-600">
             <div>
-                <h1 class="text-xl font-bold text-yellow-400">🚧 疯狂矿工</h1>
-                <div class="text-xs text-gray-400">等级: <span id="level-display">新手</span></div>
+                <h1 class="text-xl font-bold text-yellow-400 drop-shadow-md">🚧 疯狂矿工</h1>
+                <div class="text-xs text-gray-400 flex items-center gap-1">
+                    <span>当前装备:</span>
+                    <span id="current-tool-icon" class="text-lg">⛏️</span>
+                    <span id="current-tool-name" class="text-white">新手铲</span>
+                </div>
             </div>
-            <div class="text-right">
-                <div class="text-2xl font-bold text-yellow-300 pixel-font">
-                    💰 <span id="gold-display">0</span>
+            <div class="text-right bg-gray-900 px-3 py-1 rounded-lg border border-gray-600">
+                <div class="text-xs text-gray-500 uppercase">当前金币</div>
+                <div class="text-2xl font-bold text-yellow-300 pixel-font tracking-wider">
+                    <span id="gold-display">0</span> 💰
                 </div>
             </div>
         </div>
 
         <!-- 游戏区域 (中间) -->
-        <div class="flex-1 overflow-y-auto p-4 relative bg-gray-800">
+        <div class="flex-1 overflow-y-auto p-4 relative bg-gray-800 flex flex-col">
             
             <!-- 状态提示 -->
-            <div id="status-message" class="text-center text-sm h-6 mb-2 text-gray-300 font-mono">
-                准备挖掘...
+            <div id="status-container" class="h-8 mb-2 flex items-center justify-center">
+                <div id="status-message" class="text-sm text-gray-400 font-mono bg-gray-900/50 px-3 py-1 rounded-full">
+                    准备挖掘...
+                </div>
             </div>
 
             <!-- 挖矿网格 -->
-            <div id="mine-grid" class="grid grid-cols-5 gap-2 bg-gray-900 p-2 rounded-lg border-2 border-gray-700">
-                <!-- 网格由JS生成 -->
+            <div class="flex-1 flex flex-col justify-center">
+                <div id="mine-grid" class="grid grid-cols-5 gap-2 bg-gray-900 p-2 rounded-xl border-4 border-gray-700 shadow-inner">
+                    <!-- 网格由JS生成 -->
+                </div>
             </div>
 
             <!-- 进度条/冷却 -->
             <div class="mt-4">
-                <div class="flex justify-between text-xs text-gray-400 mb-1">
-                    <span>当前工具: <span id="current-tool-name" class="text-blue-300">锈迹斑斑的镐</span></span>
-                    <span>力量: <span id="current-tool-power">1</span></span>
+                <div class="w-full bg-gray-900 rounded-full h-3 border border-gray-600 overflow-hidden">
+                    <div id="stamina-bar" class="bg-gradient-to-r from-blue-500 to-cyan-400 h-full w-full transition-all duration-75 origin-left"></div>
                 </div>
-                <div class="w-full bg-gray-700 rounded-full h-2.5">
-                    <div id="stamina-bar" class="bg-blue-500 h-2.5 rounded-full transition-all duration-300" style="width: 100%"></div>
+                <div class="flex justify-between text-[10px] text-gray-500 mt-1 px-1">
+                    <span>体力/冷却</span>
+                    <span id="tool-stats-hint">力量: 1</span>
                 </div>
             </div>
 
             <!-- 物品栏简略 -->
-            <div class="mt-4 bg-gray-700/50 rounded p-2">
-                <h3 class="text-xs text-gray-400 mb-2 uppercase font-bold">背包 (待出售)</h3>
-                <div id="inventory-display" class="flex flex-wrap gap-1 min-h-[40px]">
-                    <span class="text-gray-500 text-sm italic p-1">空空如也...</span>
+            <div class="mt-3 bg-gray-900/80 rounded-lg p-2 border border-gray-700">
+                <div class="flex justify-between items-center mb-1">
+                    <h3 class="text-xs text-gray-400 font-bold uppercase tracking-wider">背包</h3>
+                    <span id="bag-count" class="text-xs text-gray-500">0/20</span>
+                </div>
+                <div id="inventory-display" class="flex flex-wrap gap-1 min-h-[36px]">
+                    <span class="text-gray-600 text-xs italic w-full text-center py-2">空空如也...去挖点东西吧！</span>
                 </div>
             </div>
         </div>
 
         <!-- 底部控制栏 -->
-        <div class="p-4 bg-gray-700 border-t border-gray-600 z-10">
-            <div class="grid grid-cols-2 gap-3">
-                <button onclick="sellAll()" id="btn-sell" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded shadow active:transform active:scale-95 transition-transform flex items-center justify-center gap-2">
-                    <span>💰 出售矿石</span>
-                    <span id="sell-value" class="text-xs bg-green-800 px-2 rounded-full hidden">0</span>
+        <div class="p-4 bg-gray-700 border-t border-gray-600 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.3)]">
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="sellAll()" id="btn-sell" class="group relative bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-xl shadow-[0_4px_0_rgb(21,128,61)] active:shadow-none active:translate-y-[4px] transition-all flex flex-col items-center justify-center">
+                    <span class="flex items-center gap-1 text-lg">💰 出售矿石</span>
+                    <span id="sell-value" class="text-xs text-green-100 opacity-80 group-hover:opacity-100 transition-opacity">价值: 0</span>
                 </button>
-                <button onclick="toggleShop()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded shadow active:transform active:scale-95 transition-transform">
-                    🛒 升级商店
+                
+                <button onclick="toggleShop()" class="relative bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl shadow-[0_4px_0_rgb(29,78,216)] active:shadow-none active:translate-y-[4px] transition-all flex flex-col items-center justify-center">
+                    <span class="flex items-center gap-1 text-lg">🛒 升级工具</span>
+                    <span class="text-xs text-blue-100 opacity-80">提升效率与运气</span>
+                    <!-- 红点提示 -->
+                    <div id="shop-notification" class="notification-dot"></div>
                 </button>
             </div>
         </div>
 
         <!-- 商店弹窗 -->
-        <div id="shop-modal" class="absolute inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
-            <div class="bg-gray-800 border-2 border-gray-600 rounded-lg w-full max-w-sm p-4 shadow-2xl">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold text-white">⚒️ 工具商店</h2>
-                    <button onclick="toggleShop()" class="text-gray-400 hover:text-white">✕</button>
+        <div id="shop-modal" class="absolute inset-0 bg-black/80 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm opacity-0 transition-opacity duration-200">
+            <div class="bg-gray-800 border-2 border-gray-500 rounded-xl w-full max-w-sm p-5 shadow-2xl transform scale-95 transition-transform duration-200" id="shop-content">
+                <div class="flex justify-between items-center mb-6 border-b border-gray-600 pb-2">
+                    <h2 class="text-2xl font-bold text-white flex items-center gap-2">⚒️ 工具商店</h2>
+                    <button onclick="toggleShop()" class="bg-gray-700 hover:bg-gray-600 w-8 h-8 rounded-full flex items-center justify-center text-gray-300 font-bold">✕</button>
                 </div>
-                <div id="shop-list" class="space-y-3">
+                
+                <div id="shop-list" class="space-y-3 overflow-y-auto max-h-[60vh]">
                     <!-- 商品列表由JS生成 -->
                 </div>
             </div>
@@ -167,24 +194,24 @@
         // --- 游戏数据配置 ---
         
         const TOOLS = [
-            { id: 0, name: "锈铁镐", cost: 0, power: 1, luck: 0, cooldown: 800, icon: "⛏️" },
-            { id: 1, name: "铁镐", cost: 100, power: 2, luck: 0.1, cooldown: 600, icon: "⚒️" },
-            { id: 2, name: "黄金镐", cost: 500, power: 3, luck: 0.25, cooldown: 500, icon: "🔱" },
-            { id: 3, name: "钻石钻头", cost: 2000, power: 5, luck: 0.4, cooldown: 300, icon: "💠" },
-            { id: 4, name: "激光切割机", cost: 10000, power: 10, luck: 0.6, cooldown: 100, icon: "🔫" }
+            { id: 0, name: "生锈铁铲", cost: 0, power: 1, luck: 0, cooldown: 800, icon: "⛏️", desc: "虽然很破，但能挖土" },
+            { id: 1, name: "精铁镐", cost: 100, power: 2, luck: 0.15, cooldown: 600, icon: "⚒️", desc: "稍微好一点，容易出铁" },
+            { id: 2, name: "黄金矿镐", cost: 500, power: 3, luck: 0.35, cooldown: 450, icon: "🔱", desc: "土豪金，增加好运" },
+            { id: 3, name: "钻石钻头", cost: 2000, power: 5, luck: 0.55, cooldown: 250, icon: "💠", desc: "无坚不摧，速度极快" },
+            { id: 4, name: "量子切割机", cost: 8000, power: 10, luck: 0.8, cooldown: 100, icon: "🔫", desc: "来自未来的科技，疯狂出货" }
         ];
 
-        // 掉落物配置 (权重越高越容易出)
-        // luckFactor: 工具幸运值对该物品的加成系数
+        // 掉落物配置
         const LOOT_TABLE = [
-            { type: 'empty', name: '碎土渣', value: 0, weight: 40, color: '#5D4037', icon: '🌫️', luckFactor: -1 },
-            { type: 'ore', name: '石头', value: 2, weight: 30, color: '#9E9E9E', icon: '🪨', luckFactor: 0 },
-            { type: 'ore', name: '煤炭', value: 5, weight: 15, color: '#212121', icon: '⚫', luckFactor: 0.5 },
-            { type: 'ore', name: '铁矿', value: 15, weight: 10, color: '#A1887F', icon: '🧱', luckFactor: 1 },
-            { type: 'ore', name: '金矿', value: 50, weight: 4, color: '#FFD700', icon: '🟡', luckFactor: 1.5 },
-            { type: 'ore', name: '钻石', value: 200, weight: 1, color: '#00FFFF', icon: '💎', luckFactor: 2 },
-            { type: 'bomb', name: '炸弹', value: -50, weight: 5, color: '#D32F2F', icon: '💣', luckFactor: -0.5 },
-            { type: 'surprise', name: '神秘宝箱', value: 0, weight: 2, color: '#9C27B0', icon: '🎁', luckFactor: 1 }
+            { type: 'empty', name: '碎土渣', value: 0, weight: 45, color: '#5D4037', icon: '🌫️', luckFactor: -1.5 },
+            { type: 'ore', name: '普通石头', value: 2, weight: 30, color: '#9E9E9E', icon: '🪨', luckFactor: -0.5 },
+            { type: 'ore', name: '煤炭', value: 5, weight: 15, color: '#333', icon: '⚫', luckFactor: 0.5 },
+            { type: 'ore', name: '铁矿石', value: 15, weight: 10, color: '#A1887F', icon: '🧱', luckFactor: 1 },
+            { type: 'ore', name: '金矿石', value: 50, weight: 4, color: '#FFD700', icon: '🟡', luckFactor: 1.5 },
+            { type: 'ore', name: '蓝宝石', value: 150, weight: 1.5, color: '#2196F3', icon: '🔹', luckFactor: 2 },
+            { type: 'ore', name: '稀有钻石', value: 300, weight: 0.5, color: '#00FFFF', icon: '💎', luckFactor: 2.5 },
+            { type: 'bomb', name: '炸弹', value: -10, weight: 6, color: '#ef4444', icon: '💣', luckFactor: -1.2 }, // 运气越高炸弹越少
+            { type: 'surprise', name: '宝箱', value: 0, weight: 2.5, color: '#d946ef', icon: '🎁', luckFactor: 1.5 }
         ];
 
         // --- 游戏状态 ---
@@ -203,10 +230,9 @@
         function init() {
             renderGrid();
             updateUI();
-            renderShop();
+            checkShopNotification();
             
-            // 自动存档检查 (简化版，仅内存)
-            log("欢迎来到矿洞！点击土块开始挖掘。");
+            log("欢迎来到地下矿洞！点击土块开工吧。");
         }
 
         // --- 核心逻辑 ---
@@ -214,11 +240,16 @@
         function renderGrid() {
             const grid = document.getElementById('mine-grid');
             grid.innerHTML = '';
+            // 每次生成时稍微随机一点颜色，增加质感
             for (let i = 0; i < state.gridSize; i++) {
                 const block = document.createElement('div');
-                block.className = 'mine-block bg-amber-700 h-14 rounded border-2 border-amber-800 flex items-center justify-center text-2xl relative overflow-hidden';
+                // 随机选择土块颜色变体
+                const bgClass = Math.random() > 0.5 ? 'bg-[#795548]' : 'bg-[#6D4C41]';
+                
+                block.className = `mine-block ${bgClass} h-12 sm:h-14 rounded-md border-b-4 border-[#4E342E] flex items-center justify-center text-2xl relative overflow-hidden active:border-b-0 active:translate-y-1`;
                 block.dataset.index = i;
-                block.innerHTML = `<span class="opacity-30 select-none">🟫</span>`; // 初始土块图案
+                // 添加一些随机的纹理点缀（纯CSS太复杂，用字符代替）
+                block.innerHTML = `<span class="opacity-10 select-none text-black text-sm">●</span>`; 
                 block.onclick = (e) => mineBlock(i, e);
                 grid.appendChild(block);
             }
@@ -227,6 +258,7 @@
         function mineBlock(index, event) {
             if (state.isStunned) {
                 shakeScreen();
+                showFloatText("眩晕中...", event.clientX, event.clientY, "text-red-500 font-bold");
                 return;
             }
             if (!state.canMine) return;
@@ -235,18 +267,23 @@
             const block = document.getElementById('mine-grid').children[index];
 
             // 如果已经挖过了
-            if (block.classList.contains('mined')) {
-                return;
-            }
+            if (block.classList.contains('mined')) return;
 
             // 冷却处理
             state.canMine = false;
-            document.getElementById('stamina-bar').style.width = '0%';
+            const bar = document.getElementById('stamina-bar');
+            bar.style.transition = 'none';
+            bar.style.width = '0%';
             
-            // 模拟挖掘延迟
+            // 强制重绘以应用无过渡的width
+            void bar.offsetWidth; 
+
+            // 恢复过渡并填充
+            bar.style.transition = `width ${tool.cooldown}ms linear`;
+            bar.style.width = '100%';
+            
             setTimeout(() => {
                 state.canMine = true;
-                document.getElementById('stamina-bar').style.width = '100%';
             }, tool.cooldown);
 
             // 决定掉落物
@@ -257,13 +294,17 @@
         }
 
         function calculateLoot(luck) {
-            // 根据幸运值调整权重
             let totalWeight = 0;
+            // 动态计算权重
             const weightedTable = LOOT_TABLE.map(item => {
                 let w = item.weight;
-                if (item.luckFactor > 0) w += (item.weight * luck * item.luckFactor); // 增加好东西几率
-                if (item.luckFactor < 0) w -= (item.weight * luck * Math.abs(item.luckFactor)); // 减少坏东西几率
-                if (w < 0) w = 0;
+                if (item.luckFactor > 0) {
+                    // 正运气因子：运气越高，权重越高
+                    w = w * (1 + luck * item.luckFactor);
+                } else if (item.luckFactor < 0) {
+                    // 负运气因子：运气越高，权重越低（如炸弹、石头）
+                    w = w * (1 / (1 + luck * Math.abs(item.luckFactor)));
+                }
                 totalWeight += w;
                 return { ...item, finalWeight: w };
             });
@@ -280,80 +321,92 @@
         }
 
         function handleLoot(loot, block, event) {
-            block.classList.add('mined', 'bg-gray-800', 'border-gray-700', 'cursor-default');
-            block.classList.remove('bg-amber-700', 'border-amber-800');
-            block.innerHTML = `<span class="pop-anim">${loot.icon}</span>`;
-            block.style.borderColor = loot.color;
+            // 改变格子样式
+            block.classList.add('mined', 'bg-gray-800', 'cursor-default', 'border-none', 'shadow-none');
+            block.classList.remove('bg-[#795548]', 'bg-[#6D4C41]', 'border-b-4', 'active:translate-y-1');
+            block.innerHTML = `<span class="pop-anim text-3xl filter drop-shadow-lg">${loot.icon}</span>`;
+            block.style.boxShadow = `inset 0 0 10px ${loot.color}33`; // 微微发光
 
-            // 浮动文字位置
-            const rect = block.getBoundingClientRect();
-            const x = event.clientX;
-            const y = event.clientY;
+            // 获取位置用于浮动文字
+            let x, y;
+            if (event) {
+                x = event.clientX;
+                y = event.clientY;
+            } else {
+                const rect = block.getBoundingClientRect();
+                x = rect.left + rect.width / 2;
+                y = rect.top + rect.height / 2;
+            }
 
             if (loot.type === 'bomb') {
-                // 炸弹逻辑
                 triggerBomb(loot);
-                showFloatText("💥 轰!!!", x, y, "text-red-500 text-2xl");
+                showFloatText("💥 轰!!!", x, y, "text-red-500 text-3xl font-black");
             } else if (loot.type === 'surprise') {
-                // 惊喜宝箱
-                const bonus = Math.floor(Math.random() * 200) + 100;
+                const bonus = Math.floor(Math.random() * 200) + 100 + (state.toolIdx * 50);
                 state.gold += bonus;
-                log(`你发现了宝箱！获得 ${bonus} 金币！`);
-                showFloatText(`+${bonus} 💰`, x, y, "text-purple-400 text-xl");
+                log(`运气爆棚！宝箱里有 ${bonus} 金币！`, "text-purple-400");
+                showFloatText(`+${bonus} 💰`, x, y, "text-purple-300 text-2xl font-bold");
                 updateUI();
+                checkShopNotification(); // 钱变了，检查是否可以买东西
             } else if (loot.type === 'ore') {
-                // 正常矿石
                 state.inventory.push(loot);
-                log(`挖到了 ${loot.name}`);
-                showFloatText(`+${loot.name}`, x, y, "text-white");
+                log(`挖到了 ${loot.name}`, "text-blue-300");
+                showFloatText(`+${loot.name}`, x, y, "text-white font-bold", loot.color);
                 updateInventoryUI();
             } else {
                 // 空
-                showFloatText("空...", x, y, "text-gray-500 text-xs");
+                showFloatText("什么也没有...", x, y, "text-gray-600 text-xs");
             }
 
-            // 检查是否所有格子都被挖了，重置盘面
             checkReset();
         }
 
         function triggerBomb(loot) {
             state.isStunned = true;
             
-            // 扣钱
-            const lostGold = Math.floor(state.gold * 0.1) + 10; // 损失10% + 10
-            if (state.gold > 0) {
-                state.gold = Math.max(0, state.gold - lostGold);
-                log(`被炸弹炸飞了！丢失了 ${lostGold} 金币！`);
-            } else {
-                log(`被炸弹炸飞了！幸好你是个穷光蛋。`);
-            }
+            // 扣钱逻辑：当前金币的10%，至少扣10块
+            const lostGold = Math.floor(Math.max(10, state.gold * 0.1));
+            const oldGold = state.gold;
+            state.gold = Math.max(0, state.gold - lostGold);
+            const actualLost = oldGold - state.gold;
 
-            // 视觉特效
+            log(`踩到地雷！损失 ${actualLost} 金币，眩晕2秒！`, "text-red-500 font-bold");
+            
+            // 全屏震动
             const container = document.querySelector('.max-w-md');
             container.classList.add('shake-anim');
-            document.body.style.backgroundColor = "#4a0000"; // 屏幕变红
+            document.body.classList.add('bg-red-900'); // 背景变红
             
-            document.getElementById('status-message').innerText = "😵 眩晕中...";
-            document.getElementById('status-message').className = "text-center text-sm h-6 mb-2 text-red-500 font-bold animate-pulse";
+            // 状态栏变化
+            const statusBox = document.getElementById('status-message');
+            statusBox.innerText = "😵 咳咳... 被炸晕了...";
+            statusBox.className = "text-sm text-red-200 font-bold bg-red-900 px-3 py-1 rounded-full animate-pulse border border-red-500";
 
             setTimeout(() => {
                 container.classList.remove('shake-anim');
-                document.body.style.backgroundColor = "#1a202c";
+                document.body.classList.remove('bg-red-900');
                 state.isStunned = false;
-                document.getElementById('status-message').innerText = "准备挖掘...";
-                document.getElementById('status-message').className = "text-center text-sm h-6 mb-2 text-gray-300 font-mono";
+                statusBox.innerText = "准备挖掘...";
+                statusBox.className = "text-sm text-gray-400 font-mono bg-gray-900/50 px-3 py-1 rounded-full";
             }, 2000);
 
             updateUI();
+            // 炸弹也可能导致钱变少，买不起东西了
+            checkShopNotification();
         }
 
         function checkReset() {
             const minedCount = document.querySelectorAll('.mined').length;
             if (minedCount >= state.gridSize) {
+                const statusBox = document.getElementById('status-message');
+                statusBox.innerText = "✨ 矿层已清空，前往下一层...";
+                statusBox.className = "text-sm text-yellow-300 font-bold bg-yellow-900/50 px-3 py-1 rounded-full";
+                
                 setTimeout(() => {
-                    log("这一层挖空了，前往下一层矿洞...", "text-yellow-500");
                     renderGrid();
-                }, 1000);
+                    statusBox.innerText = "准备挖掘...";
+                    statusBox.className = "text-sm text-gray-400 font-mono bg-gray-900/50 px-3 py-1 rounded-full";
+                }, 1200);
             }
         }
 
@@ -361,7 +414,10 @@
 
         function sellAll() {
             if (state.inventory.length === 0) {
-                showFloatText("背包是空的", window.innerWidth/2, window.innerHeight - 100, "text-red-400");
+                // 按钮抖动提示
+                const btn = document.getElementById('btn-sell');
+                btn.classList.add('shake-anim');
+                setTimeout(() => btn.classList.remove('shake-anim'), 500);
                 return;
             }
 
@@ -372,16 +428,21 @@
             const count = state.inventory.length;
             state.inventory = [];
             
-            log(`出售了 ${count} 个矿石，获得 ${totalValue} 金币`);
-            showFloatText(`+${totalValue} 💰`, window.innerWidth/2, window.innerHeight/2, "text-yellow-400 text-4xl");
+            log(`出售成功！获得 ${totalValue} 金币`, "text-green-400");
             
-            // 播放声音效果(可选，这里只做视觉)
-            const btn = document.getElementById('btn-sell');
-            btn.classList.add('scale-110', 'bg-green-400');
-            setTimeout(() => btn.classList.remove('scale-110', 'bg-green-400'), 200);
-
+            // 在屏幕中央显示大大的金币数字
+            showFloatText(`+${totalValue} 💰`, window.innerWidth/2, window.innerHeight/2 - 50, "text-yellow-300 text-5xl font-black");
+            
             updateUI();
             updateInventoryUI();
+            
+            // 关键修复：卖完东西有钱了，马上刷新商店逻辑（比如红点）
+            // 如果商店正开着，也刷新列表
+            checkShopNotification();
+            const modal = document.getElementById('shop-modal');
+            if (!modal.classList.contains('hidden')) {
+                renderShop();
+            }
         }
 
         function buyTool(toolId) {
@@ -389,97 +450,163 @@
             if (state.gold >= tool.cost) {
                 state.gold -= tool.cost;
                 state.toolIdx = toolId;
-                log(`购买了 ${tool.name}!`);
+                
+                // 关闭商店并展示特效
                 toggleShop();
+                showFloatText("升级成功!", window.innerWidth/2, window.innerHeight/2, "text-blue-400 text-4xl font-black");
+                
+                // 播放升级特效
+                const toolIcon = document.getElementById('current-tool-icon');
+                toolIcon.classList.add('scale-150', 'text-yellow-300');
+                setTimeout(() => toolIcon.classList.remove('scale-150', 'text-yellow-300'), 500);
+
                 updateUI();
-                renderShop(); // 更新商店按钮状态
-                showFloatText("升级成功!", window.innerWidth/2, window.innerHeight/2, "text-blue-400 text-2xl");
-            } else {
-                log("金币不足！", "text-red-400");
+                checkShopNotification();
+                log(`装备升级为：${tool.name}`, "text-yellow-300");
             }
         }
 
         // --- UI 更新 ---
 
         function updateUI() {
-            document.getElementById('gold-display').innerText = state.gold;
-            document.getElementById('current-tool-name').innerText = TOOLS[state.toolIdx].name;
-            document.getElementById('current-tool-power').innerText = TOOLS[state.toolIdx].power;
+            const currentTool = TOOLS[state.toolIdx];
             
-            // 更新出售按钮的预览值
+            // 金币滚动效果（简单版）
+            document.getElementById('gold-display').innerText = state.gold;
+            
+            document.getElementById('current-tool-name').innerText = currentTool.name;
+            document.getElementById('current-tool-icon').innerText = currentTool.icon;
+            document.getElementById('tool-stats-hint').innerText = `力量: ${currentTool.power} | 幸运: ${(currentTool.luck*100).toFixed(0)}%`;
+
+            // 更新出售按钮上的价值预览
             let totalValue = 0;
             state.inventory.forEach(item => totalValue += item.value);
             const valSpan = document.getElementById('sell-value');
+            valSpan.innerText = `价值: ${totalValue}`;
+            
+            const sellBtn = document.getElementById('btn-sell');
             if (totalValue > 0) {
-                valSpan.innerText = `+${totalValue}`;
-                valSpan.classList.remove('hidden');
+                sellBtn.classList.remove('bg-gray-600', 'hover:bg-gray-500', 'cursor-not-allowed');
+                sellBtn.classList.add('bg-green-600', 'hover:bg-green-500');
             } else {
-                valSpan.classList.add('hidden');
+                // 没东西卖的时候变灰一点
+                sellBtn.classList.remove('bg-green-600', 'hover:bg-green-500');
+                sellBtn.classList.add('bg-gray-600', 'hover:bg-gray-500');
             }
         }
 
         function updateInventoryUI() {
             const container = document.getElementById('inventory-display');
+            const countSpan = document.getElementById('bag-count');
+            
+            countSpan.innerText = `${state.inventory.length}/∞`;
+
             if (state.inventory.length === 0) {
-                container.innerHTML = `<span class="text-gray-500 text-sm italic p-1">空空如也...</span>`;
+                container.innerHTML = `<span class="text-gray-600 text-xs italic w-full text-center py-2">空空如也...去挖点东西吧！</span>`;
                 return;
             }
             
-            // 只显示最近的8个物品，防止溢出太难看
-            const recent = state.inventory.slice(-8);
+            // 显示最近获得的10个
+            const recent = state.inventory.slice(-10).reverse(); // 最新的在前面
+            
             container.innerHTML = recent.map(item => 
-                `<span class="bg-gray-800 border border-gray-600 rounded px-1 text-lg" title="${item.name}">${item.icon}</span>`
+                `<div class="w-8 h-8 bg-gray-800 border border-gray-600 rounded flex items-center justify-center text-lg shadow-sm" title="${item.name}">${item.icon}</div>`
             ).join('');
             
-            if (state.inventory.length > 8) {
-                container.innerHTML += `<span class="text-xs text-gray-400 flex items-center">+${state.inventory.length - 8}</span>`;
+            if (state.inventory.length > 10) {
+                container.innerHTML += `<div class="w-8 h-8 bg-gray-800 border border-gray-600 rounded flex items-center justify-center text-xs text-gray-400">+${state.inventory.length - 10}</div>`;
             }
-
-            // 更新出售按钮上的数值
-            updateUI();
         }
 
         function log(msg, colorClass = "text-gray-300") {
             const status = document.getElementById('status-message');
             status.innerText = msg;
-            // 短暂高亮颜色
-            const originalColor = status.className;
-            if (colorClass) {
-               // 简单的处理，实际项目可以用更复杂的日志系统
+            // 重置一下动画
+            status.style.animation = 'none';
+            status.offsetHeight; /* trigger reflow */
+            status.style.animation = null; 
+            
+            // 根据消息类型简单改变颜色
+            if (colorClass.includes('red')) {
+                status.className = "text-sm text-red-300 font-bold bg-red-900/30 px-3 py-1 rounded-full";
+            } else if (colorClass.includes('yellow') || colorClass.includes('purple')) {
+                status.className = "text-sm text-yellow-300 font-bold bg-yellow-900/30 px-3 py-1 rounded-full";
+            } else {
+                status.className = "text-sm text-gray-300 font-mono bg-gray-900/50 px-3 py-1 rounded-full";
             }
         }
 
-        function showFloatText(text, x, y, colorClass="text-white") {
+        function showFloatText(text, x, y, extraClasses="", colorOverride=null) {
             const container = document.getElementById('float-container');
             const el = document.createElement('div');
-            el.className = `float-text ${colorClass}`;
+            el.className = `float-text ${extraClasses}`;
             el.innerText = text;
+            if (colorOverride) el.style.color = colorOverride;
             
-            // 随机一点偏移，防止重叠
-            const offsetX = (Math.random() - 0.5) * 40;
+            // 稍微随机化位置，避免完全重叠
+            const randomX = (Math.random() - 0.5) * 30;
             
-            // 确保在屏幕内
-            const safeX = Math.min(Math.max(x + offsetX, 20), window.innerWidth - 50);
-            const safeY = Math.min(Math.max(y - 50, 50), window.innerHeight - 50);
+            // 边界检查
+            let finalX = x + randomX;
+            let finalY = y - 20; // 稍微往上一点
+            
+            if (finalX < 20) finalX = 20;
+            if (finalX > window.innerWidth - 50) finalX = window.innerWidth - 50;
+            if (finalY < 50) finalY = 50;
 
-            el.style.left = `${safeX}px`;
-            el.style.top = `${safeY}px`;
+            el.style.left = `${finalX}px`;
+            el.style.top = `${finalY}px`;
             
             container.appendChild(el);
-            setTimeout(() => el.remove(), 1000);
+            setTimeout(() => el.remove(), 800);
         }
 
         function shakeScreen() {
             const app = document.querySelector('.max-w-md');
-            app.classList.add('translate-x-1');
-            setTimeout(() => app.classList.remove('translate-x-1'), 50);
+            // 这里只做简单的CSS平移震动，配合动画类
         }
 
         // --- 商店逻辑 ---
 
+        function checkShopNotification() {
+            const nextToolIdx = state.toolIdx + 1;
+            const notif = document.getElementById('shop-notification');
+            
+            if (nextToolIdx < TOOLS.length) {
+                if (state.gold >= TOOLS[nextToolIdx].cost) {
+                    notif.classList.add('active'); // 显示红点
+                } else {
+                    notif.classList.remove('active');
+                }
+            } else {
+                notif.classList.remove('active');
+            }
+        }
+
         function toggleShop() {
             const modal = document.getElementById('shop-modal');
-            modal.classList.toggle('hidden');
+            const content = document.getElementById('shop-content');
+            
+            if (modal.classList.contains('hidden')) {
+                // 打开前先刷新数据，这是修复 bug 的关键
+                renderShop(); 
+                
+                modal.classList.remove('hidden');
+                // 简单的淡入动画
+                requestAnimationFrame(() => {
+                    modal.classList.remove('opacity-0');
+                    content.classList.remove('scale-95');
+                    content.classList.add('scale-100');
+                });
+            } else {
+                // 关闭
+                modal.classList.add('opacity-0');
+                content.classList.remove('scale-100');
+                content.classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 200);
+            }
         }
 
         function renderShop() {
@@ -491,48 +618,52 @@
 
                 const isOwned = state.toolIdx >= index;
                 const isUnlockable = state.toolIdx === index - 1;
-                let btnClass = "";
-                let btnText = "";
-                let onClick = "";
+                let btnHtml = '';
 
                 if (isOwned) {
-                    btnClass = "bg-gray-600 text-gray-400 cursor-default opacity-50";
-                    btnText = "已拥有";
+                    btnHtml = `<button class="px-4 py-2 rounded bg-gray-700 text-gray-500 font-bold text-xs cursor-default">已拥有</button>`;
                 } else if (isUnlockable) {
-                    if (state.gold >= tool.cost) {
-                        btnClass = "bg-yellow-600 hover:bg-yellow-500 text-white shadow-lg border-yellow-400 border";
-                        onClick = `buyTool(${index})`;
-                        btnText = `购买 (${tool.cost} 💰)`;
+                    const canAfford = state.gold >= tool.cost;
+                    if (canAfford) {
+                        btnHtml = `
+                            <button onclick="buyTool(${index})" class="px-4 py-2 rounded bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-sm shadow-lg transform transition active:scale-95 animate-pulse">
+                                购买 ${tool.cost} 💰
+                            </button>
+                        `;
                     } else {
-                        btnClass = "bg-gray-700 text-gray-500 cursor-not-allowed border border-gray-600";
-                        btnText = `需要 ${tool.cost} 💰`;
+                        btnHtml = `
+                            <button class="px-4 py-2 rounded bg-gray-700 text-gray-400 font-bold text-xs border border-gray-600 cursor-not-allowed">
+                                缺 ${tool.cost - state.gold} 💰
+                            </button>
+                        `;
                     }
                 } else {
-                    btnClass = "bg-gray-800 text-gray-600 cursor-not-allowed opacity-30";
-                    btnText = "锁定";
+                    btnHtml = `<button class="px-4 py-2 rounded bg-gray-800 text-gray-600 font-bold text-xs cursor-default">🔒 锁定</button>`;
                 }
 
                 const itemHtml = `
-                    <div class="flex items-center justify-between p-2 bg-gray-700/50 rounded border border-gray-600">
+                    <div class="flex items-center justify-between p-3 bg-gray-700/40 rounded-lg border ${isUnlockable && state.gold >= tool.cost ? 'border-yellow-500/50 bg-yellow-900/10' : 'border-gray-600'}">
                         <div class="flex items-center gap-3">
-                            <span class="text-2xl">${tool.icon}</span>
+                            <div class="text-3xl w-10 text-center">${tool.icon}</div>
                             <div>
-                                <div class="font-bold text-sm text-gray-200">${tool.name}</div>
-                                <div class="text-xs text-gray-400">幸运: ${(tool.luck * 100).toFixed(0)}% | 冷却: ${tool.cooldown}ms</div>
+                                <div class="font-bold text-sm text-gray-200 flex items-center gap-2">
+                                    ${tool.name}
+                                    ${isUnlockable && state.gold >= tool.cost ? '<span class="text-[10px] bg-red-500 text-white px-1 rounded animate-bounce">NEW</span>' : ''}
+                                </div>
+                                <div class="text-xs text-gray-400">${tool.desc}</div>
+                                <div class="text-[10px] text-gray-500 mt-1">幸运 +${(tool.luck * 100).toFixed(0)}%</div>
                             </div>
                         </div>
-                        <button ${onClick ? `onclick="${onClick}"` : ''} class="px-3 py-1 rounded text-xs font-bold transition-all ${btnClass}">
-                            ${btnText}
-                        </button>
+                        <div class="pl-2">
+                            ${btnHtml}
+                        </div>
                     </div>
                 `;
                 list.innerHTML += itemHtml;
             });
         }
 
-        // 启动游戏
         init();
-
     </script>
 </body>
 </html>
